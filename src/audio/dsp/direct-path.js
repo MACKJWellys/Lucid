@@ -18,6 +18,8 @@ export class DirectPath {
     this.drive = 0.92;
     this.mix = 0.38;
     this.mixAlpha = 0.0022;
+    this.level = 0;
+    this.lift = 1.18;
   }
 
   process(x, energy = 0, speechiness = 0, brightness = 0.3) {
@@ -32,7 +34,15 @@ export class DirectPath {
     y = this.lp.process(y);
     y = this.midDip.process(y);
     y = this.bodyDip.process(y);
-    y = this.trim * Math.tanh(this.drive * y) + y * 0.08;
+    this.level += (Math.abs(y) - this.level) * 0.01;
+    const quietBoost = clamp((0.05 - this.level) / 0.05, 0, 1);
+    const targetLift = clamp(
+      1.04 + (1 - energy) * 0.42 + quietBoost * 0.32 - speechiness * 0.08,
+      1.0,
+      1.72
+    );
+    this.lift += (targetLift - this.lift) * this.mixAlpha;
+    y = this.trim * Math.tanh(this.drive * y * this.lift) + y * 0.1 * this.lift;
     return y * this.mix;
   }
 }

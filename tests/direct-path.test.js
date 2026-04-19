@@ -39,4 +39,21 @@ describe('DirectPath', () => {
     }
     expect(busyPeak).toBeLessThan(quietPeak);
   });
+
+  it('gently lifts very quiet detail more than louder ambience', () => {
+    const dp = new DirectPath(48000);
+    let quietPeak = 0;
+    let louderPeak = 0;
+    for (let i = 0; i < 9600; i++) {
+      const s = 0.015 * Math.sin(2 * Math.PI * 1200 * i / 48000);
+      if (i > 4800) quietPeak = Math.max(quietPeak, Math.abs(dp.process(s, 0.03, 0.05, 0.35)));
+      else dp.process(s, 0.03, 0.05, 0.35);
+    }
+    for (let i = 0; i < 9600; i++) {
+      const s = 0.08 * Math.sin(2 * Math.PI * 1200 * i / 48000);
+      if (i > 4800) louderPeak = Math.max(louderPeak, Math.abs(dp.process(s, 0.35, 0.05, 0.35)));
+      else dp.process(s, 0.35, 0.05, 0.35);
+    }
+    expect(quietPeak / 0.015).toBeGreaterThan((louderPeak / 0.08) * 0.75);
+  });
 });
