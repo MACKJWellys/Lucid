@@ -9,8 +9,17 @@
 
   let isActive = false;
   let hint = 'tap to begin';
+  let wakeLock = null;
 
   const offFeatures = engine.onFeatures((f) => driver.updateFeatures(f));
+
+  async function acquireWakeLock() {
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+  }
+  async function releaseWakeLock() {
+    try { await wakeLock?.release(); } catch {}
+    wakeLock = null;
+  }
 
   async function toggle() {
     if (!isActive) {
@@ -19,6 +28,7 @@
         await engine.start();
         isActive = true;
         driver.setActive(true);
+        acquireWakeLock();
       } catch (err) {
         console.error('engine start failed', err);
         hint = 'Lucid needs to hear the world. Tap to allow microphone.';
@@ -28,12 +38,14 @@
       isActive = false;
       driver.setActive(false);
       driver.setPhase('idle');
+      releaseWakeLock();
     }
   }
 
   onDestroy(() => {
     offFeatures();
     engine.stop();
+    releaseWakeLock();
   });
 </script>
 
