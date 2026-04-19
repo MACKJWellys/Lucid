@@ -3,7 +3,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({ mode }) => ({
-  base: mode === 'production' ? '/lucid/' : '/',
+  base: mode === 'production' ? '/Lucid/' : '/',
   plugins: [
     svelte(),
     VitePWA({
