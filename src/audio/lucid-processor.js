@@ -1,6 +1,7 @@
 import { DirectPath } from './dsp/direct-path.js';
 import { OnsetDetector } from './dsp/onset-detector.js';
 import { ResonatorBank } from './dsp/resonator-bank.js';
+import { AmbientBed } from './dsp/ambient-bed.js';
 import { ghibli } from './palettes/ghibli.js';
 import { Biquad } from './dsp/biquad.js';
 
@@ -13,6 +14,7 @@ class LucidProcessor extends AudioWorkletProcessor {
     this._reflectHP = new Biquad();
     this._reflectHP.setHighpass(this._sr, 180, 0.707);
     this._bank = new ResonatorBank(this._sr, ghibli);
+    this._bed = new AmbientBed(this._sr, ghibli);
 
     this._lastPostTime = 0;
     this._rmsAccum = 0; this._rmsCount = 0;
@@ -41,7 +43,8 @@ class LucidProcessor extends AudioWorkletProcessor {
       const xr = this._reflectHP.process(x);
       const direct = this._direct.process(x) * this._directMix;
       const reflective = this._bank.process(xr) * this._reflectMix;
-      const y = direct + reflective;
+      const bed = this._bed.process();
+      const y = direct + reflective + bed;
       outL[i] = y; outR[i] = y;
       this._rmsAccum += x * x; this._rmsCount++;
     }
