@@ -31,6 +31,9 @@ class LucidProcessor extends AudioWorkletProcessor {
 
     this._reflectMix = 0.7;
     this._directMix = 1.0;
+
+    this._phaseStartTime = currentTime;
+    this._phase = 'calibrating';
   }
 
   process(inputs, outputs) {
@@ -40,14 +43,24 @@ class LucidProcessor extends AudioWorkletProcessor {
     const outL = output[0]; const outR = output[1] || output[0];
     const len = outL.length;
 
+    const phaseAge = currentTime - this._phaseStartTime;
+    let newPhase = 'active';
+    if (phaseAge < 5) newPhase = 'calibrating';
+    else if (phaseAge < 60) newPhase = 'listening';
+    this._phase = newPhase;
+
+    const directMix = (this._phase === 'calibrating') ? 0 : this._directMix;
+    const reflectMix = (this._phase === 'calibrating') ? 0 : this._reflectMix;
+    const bedGain = (this._phase === 'calibrating') ? 0 : 1;
+
     for (let i = 0; i < len; i++) {
       const x = inCh ? inCh[i] : 0;
       this._onset.process(x);
       this._density.updateSample();
       const xr = this._reflectHP.process(x);
-      const direct = this._direct.process(x) * this._directMix;
-      const reflective = this._bank.process(xr) * this._reflectMix;
-      const bed = this._bed.process();
+      const direct = this._direct.process(x) * directMix;
+      const reflective = this._bank.process(xr) * reflectMix;
+      const bed = this._bed.process() * bedGain;
       const y = direct + reflective + bed;
       outL[i] = y; outR[i] = y;
       this._rmsAccum += x * x; this._rmsCount++;
@@ -66,7 +79,8 @@ class LucidProcessor extends AudioWorkletProcessor {
         lastOnsetTime: this._lastOnsetTime,
         lastOnsetIntensity: this._lastOnsetIntensity,
         textureRegime: regime,
-        spectralCentroid: 0.3
+        spectralCentroid: 0.3,
+        phase: this._phase
       });
       this._rmsAccum = 0; this._rmsCount = 0; this._lastPostTime = now;
     }
