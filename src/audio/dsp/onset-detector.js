@@ -51,6 +51,8 @@ export class OnsetDetector {
     this.t = 0;
     this.onOnset = null;
     this.lastFlatness = 0.3;
+    this.lastCentroid = 0.22;
+    this.lastSpeechiness = 0.15;
   }
 
   process(x) {
@@ -68,16 +70,32 @@ export class OnsetDetector {
     }
     this.fft.forward(this.buf, this.re, this.im);
 
-    let log = 0, sum = 0, nBins = 0;
+    let log = 0, sum = 0, weighted = 0, nBins = 0;
+    const bandEnergy = [0, 0, 0, 0];
     for (let k = 1; k < this.n / 2; k++) {
       const mag = Math.hypot(this.re[k], this.im[k]) + 1e-9;
       log += Math.log(mag);
       sum += mag;
+      weighted += mag * k;
       nBins++;
+      for (let b = 0; b < this.bandRanges.length; b++) {
+        const [lo, hi] = this.bandRanges[b];
+        if (k >= lo && k < hi) {
+          bandEnergy[b] += mag;
+          break;
+        }
+      }
     }
     const geom = Math.exp(log / nBins);
     const arith = sum / nBins;
     this.lastFlatness = geom / (arith + 1e-9);
+    this.lastCentroid = Math.max(0, Math.min(1, weighted / ((this.n / 2) * sum + 1e-9)));
+
+    const totalBand = bandEnergy[0] + bandEnergy[1] + bandEnergy[2] + bandEnergy[3] + 1e-9;
+    const midShare = bandEnergy[1] / totalBand;
+    const centroidWindow = Math.max(0, 1 - Math.abs(this.lastCentroid - 0.18) / 0.18);
+    const flatnessGate = Math.max(0, Math.min(1, (0.58 - this.lastFlatness) / 0.33));
+    this.lastSpeechiness = Math.max(0, Math.min(1, ((midShare - 0.24) / 0.22) * centroidWindow * flatnessGate));
 
     for (let b = 0; b < this.bandRanges.length; b++) {
       const [lo, hi] = this.bandRanges[b];

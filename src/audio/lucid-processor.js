@@ -5,6 +5,11 @@ import { AmbientBed } from './dsp/ambient-bed.js';
 import { DensityClassifier } from './dsp/density-classifier.js';
 import { ghibli } from './palettes/ghibli.js';
 import { Biquad } from './dsp/biquad.js';
+import { ReactiveTail } from './dsp/reactive-tail.js';
+
+function clamp(x, lo = 0, hi = 1) {
+  return Math.max(lo, Math.min(hi, x));
+}
 
 class LucidProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -16,24 +21,34 @@ class LucidProcessor extends AudioWorkletProcessor {
     this._reflectHP.setHighpass(this._sr, 180, 0.707);
     this._bank = new ResonatorBank(this._sr, ghibli);
     this._bed = new AmbientBed(this._sr, ghibli);
+    this._tail = new ReactiveTail(this._sr, ghibli);
     this._density = new DensityClassifier(this._sr);
 
     this._lastPostTime = 0;
     this._rmsAccum = 0; this._rmsCount = 0;
     this._lastOnsetTime = 0; this._lastOnsetIntensity = 0;
+    this._envFast = 0;
+    this._envSlow = 0;
+    this._brightness = 0.24;
+    this._speechiness = 0.12;
 
     this._onset.onOnset = (band, intensity) => {
-      this._bank.onOnset(band, intensity);
+      this._bank.onOnset(band, intensity, this._brightness);
+      this._tail.onOnset(band, intensity, this._brightness);
       this._density.registerOnset();
       this._lastOnsetTime = currentTime;
       this._lastOnsetIntensity = intensity;
     };
 
-    this._reflectMix = 0.7;
-    this._directMix = 1.0;
-
     this._phaseStartTime = currentTime;
     this._phase = 'calibrating';
+    this._chordCycle = ghibli.sceneChordCycle ?? [0];
+    this._cycleStep = 0;
+    this._chordIndex = this._chordCycle[0];
+    this._bed.setChordIndex(this._chordIndex);
+    this._bank.setChordIndex(this._chordIndex);
+    this._tail.setChordIndex(this._chordIndex);
+    this._nextChordShiftTime = currentTime + 7;
   }
 
   process(inputs, outputs) {
@@ -45,32 +60,72 @@ class LucidProcessor extends AudioWorkletProcessor {
 
     const phaseAge = currentTime - this._phaseStartTime;
     let newPhase = 'active';
-    if (phaseAge < 5) newPhase = 'calibrating';
-    else if (phaseAge < 60) newPhase = 'listening';
+    if (phaseAge < 4) newPhase = 'calibrating';
+    else if (phaseAge < 30) newPhase = 'listening';
     this._phase = newPhase;
 
-    const directMix = (this._phase === 'calibrating') ? 0 : this._directMix;
-    const reflectMix = (this._phase === 'calibrating') ? 0 : this._reflectMix;
-    const bedGain = (this._phase === 'calibrating') ? 0 : 1;
+    const sceneGain = this._phase === 'calibrating' ? 0 : (this._phase === 'listening' ? 0.82 : 1);
 
     for (let i = 0; i < len; i++) {
       const x = inCh ? inCh[i] : 0;
       this._onset.process(x);
       this._density.updateSample();
+      const absX = Math.abs(x);
+      this._envFast += (absX - this._envFast) * 0.08;
+      this._envSlow += (absX - this._envSlow) * 0.0024;
+      this._brightness += (this._onset.lastCentroid - this._brightness) * 0.002;
+      this._speechiness += (this._onset.lastSpeechiness - this._speechiness) * 0.002;
+
+      const energy = clamp(this._envSlow * 7.5);
+      const quietness = clamp(1 - energy * 1.7);
       const xr = this._reflectHP.process(x);
-      const direct = this._direct.process(x) * directMix;
-      const reflective = this._bank.process(xr) * reflectMix;
-      const bed = this._bed.process() * bedGain;
-      const y = direct + reflective + bed;
-      outL[i] = y; outR[i] = y;
+      const direct = sceneGain ? this._direct.process(x, energy, this._speechiness, this._brightness) : 0;
+      this._bank.process(xr, energy, this._speechiness, this._brightness);
+      this._bed.process(energy, this._brightness, this._speechiness, this._density.textureRegime, quietness);
+      this._tail.process(
+        this._bank.left * 0.9 + this._bed.left * 0.04,
+        this._bank.right * 0.9 + this._bed.right * 0.04,
+        energy,
+        this._brightness,
+        this._speechiness,
+        quietness
+      );
+
+      const yL =
+        direct +
+        sceneGain * (
+          this._bank.left * 0.86 +
+          this._bed.left +
+          this._tail.left
+        );
+      const yR =
+        direct +
+        sceneGain * (
+          this._bank.right * 0.86 +
+          this._bed.right +
+          this._tail.right
+        );
+      outL[i] = Math.tanh(yL * 0.92);
+      outR[i] = Math.tanh(yR * 0.92);
       this._rmsAccum += x * x; this._rmsCount++;
     }
 
     this._density.updateSpectralFlatness(this._onset.lastFlatness || 0.3);
     const regime = this._density.textureRegime;
-    this._bed.setBrightness(0.25 + 0.6 * regime);
-
     const now = currentTime;
+    if (this._phase !== 'calibrating' && now >= this._nextChordShiftTime) {
+      this._cycleStep = (this._cycleStep + 1) % this._chordCycle.length;
+      this._chordIndex = this._chordCycle[this._cycleStep];
+      this._bed.setChordIndex(this._chordIndex);
+      this._bank.setChordIndex(this._chordIndex);
+      this._tail.setChordIndex(this._chordIndex);
+      const hold =
+        5 +
+        (1 - clamp(this._envSlow * 6)) * 4 +
+        clamp(this._speechiness) * 2;
+      this._nextChordShiftTime = now + hold;
+    }
+
     if (now - this._lastPostTime > 1 / 30) {
       const rms = Math.sqrt(this._rmsAccum / Math.max(1, this._rmsCount));
       this.port.postMessage({
@@ -79,7 +134,8 @@ class LucidProcessor extends AudioWorkletProcessor {
         lastOnsetTime: this._lastOnsetTime,
         lastOnsetIntensity: this._lastOnsetIntensity,
         textureRegime: regime,
-        spectralCentroid: 0.3,
+        spectralCentroid: this._brightness,
+        speechiness: this._speechiness,
         phase: this._phase
       });
       this._rmsAccum = 0; this._rmsCount = 0; this._lastPostTime = now;
