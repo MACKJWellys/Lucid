@@ -44,6 +44,8 @@ export class ReactiveTail {
     this.scatter = 0;
     this.shimmerBoost = 0;
     this.motifGlow = 0;
+    this.motionA = 0;
+    this.motionB = 0;
 
     this.sparkles = Array.from({ length: 6 }, (_, index) => ({
       env: 0,
@@ -117,7 +119,7 @@ export class ReactiveTail {
       this.shimmerBoost,
       intensity * (0.2 + band * 0.12 + brightness * 0.15)
     );
-    if (band < 2 && intensity < 0.7) return;
+    if (band < 3 || intensity < 0.78) return;
 
     let best = this.sparkles[0];
     for (const sparkle of this.sparkles) {
@@ -125,12 +127,12 @@ export class ReactiveTail {
     }
 
     const chord = this.chords[this.chordIndex];
-    const octaveOffsets = [12, 19, 24, 31];
+    const octaveOffsets = [0, 7, 12, 19];
     const semi = chord[(this.scatter + band) % chord.length] + octaveOffsets[Math.min(band, octaveOffsets.length - 1)];
     best.freq = midiToHz(this.rootMidi + semi);
     best.phase = 0;
-    best.env = (0.004 + 0.015 * intensity) * (0.7 + band * 0.18);
-    const tailSeconds = 0.65 + (1 - brightness) * 1.2 + band * 0.18;
+    best.env = (0.002 + 0.008 * intensity) * (0.6 + band * 0.14);
+    const tailSeconds = 1.0 + (1 - brightness) * 1.6 + band * 0.24;
     best.decay = Math.exp(-1 / (this.sr * tailSeconds));
     best.pan = clamp((band - 1.5) * 0.28 + (this.scatter % 2 === 0 ? -0.12 : 0.12), -0.8, 0.8);
     best.drift = 0.014 + 0.003 * this.scatter;
@@ -144,6 +146,10 @@ export class ReactiveTail {
     this.quietness += (quietness - this.quietness) * 0.001;
     this.shimmerBoost *= 0.99988;
     this.motifGlow *= 0.99995;
+    this.motionA += 2 * Math.PI * 0.017 / this.sr;
+    this.motionB += 2 * Math.PI * 0.011 / this.sr;
+    if (this.motionA > Math.PI * 2) this.motionA -= Math.PI * 2;
+    if (this.motionB > Math.PI * 2) this.motionB -= Math.PI * 2;
 
     for (let i = this.motifQueue.length - 1; i >= 0; i--) {
       const event = this.motifQueue[i];
@@ -214,10 +220,12 @@ export class ReactiveTail {
     this.filtE += (tapE - this.filtE) * (damp * 0.8);
     this.filtF += (tapF - this.filtF) * (damp * 0.76);
 
-    const wet = clamp(0.12 + 0.1 * this.quietness + 0.04 * this.brightness + 0.1 * this.shimmerBoost, 0.08, 0.38);
-    const feedback = clamp(0.72 - 0.14 * this.speechiness + 0.05 * this.quietness + 0.12 * this.shimmerBoost, 0.54, 0.88);
+    const wet = clamp(0.18 + 0.12 * this.quietness + 0.05 * this.brightness + 0.12 * this.shimmerBoost, 0.12, 0.5);
+    const feedback = clamp(0.78 - 0.12 * this.speechiness + 0.06 * this.quietness + 0.12 * this.shimmerBoost, 0.62, 0.92);
     const inputDuck = 1 - 0.8 * this.speechiness;
-    const feedGain = 0.18 + 0.06 * this.brightness + 0.08 * this.shimmerBoost;
+    const feedGain = 0.28 + 0.08 * this.brightness + 0.12 * this.shimmerBoost;
+    const motionMixA = 0.5 + 0.5 * Math.sin(this.motionA);
+    const motionMixB = 0.5 + 0.5 * Math.sin(this.motionB);
 
     const feedL =
       inputL * feedGain * inputDuck +
@@ -228,12 +236,12 @@ export class ReactiveTail {
       sparkleR * (0.22 + 0.12 * this.brightness) +
       motifR * (0.35 + 0.18 * this.motifGlow);
 
-    this.delayA[this.idxA] = softClip(feedL + feedback * (0.42 * this.filtC + 0.16 * this.filtD + 0.12 * this.filtF));
-    this.delayB[this.idxB] = softClip(feedR + feedback * (0.4 * this.filtA + 0.16 * this.filtC + 0.12 * this.filtE));
-    this.delayC[this.idxC] = softClip(feedL * 0.4 + feedback * (0.36 * this.filtB + 0.14 * this.filtE));
-    this.delayD[this.idxD] = softClip(feedR * 0.4 + feedback * (0.34 * this.filtA + 0.14 * this.filtF));
-    this.delayE[this.idxE] = softClip(feedL * 0.22 + feedback * (0.28 * this.filtD + 0.18 * this.filtB));
-    this.delayF[this.idxF] = softClip(feedR * 0.22 + feedback * (0.28 * this.filtC + 0.18 * this.filtA));
+    this.delayA[this.idxA] = softClip(feedL + feedback * ((0.34 + 0.12 * motionMixA) * this.filtC + 0.14 * this.filtD + (0.08 + 0.08 * motionMixB) * this.filtF));
+    this.delayB[this.idxB] = softClip(feedR + feedback * ((0.32 + 0.12 * motionMixB) * this.filtA + 0.14 * this.filtC + (0.08 + 0.08 * motionMixA) * this.filtE));
+    this.delayC[this.idxC] = softClip(feedL * 0.46 + feedback * ((0.28 + 0.1 * (1 - motionMixA)) * this.filtB + 0.18 * this.filtE));
+    this.delayD[this.idxD] = softClip(feedR * 0.46 + feedback * ((0.26 + 0.1 * (1 - motionMixB)) * this.filtA + 0.18 * this.filtF));
+    this.delayE[this.idxE] = softClip(feedL * 0.3 + feedback * (0.24 * this.filtD + (0.14 + 0.08 * motionMixB) * this.filtB));
+    this.delayF[this.idxF] = softClip(feedR * 0.3 + feedback * (0.24 * this.filtC + (0.14 + 0.08 * motionMixA) * this.filtA));
 
     this.idxA = (this.idxA + 1) % this.delayA.length;
     this.idxB = (this.idxB + 1) % this.delayB.length;
@@ -242,8 +250,20 @@ export class ReactiveTail {
     this.idxE = (this.idxE + 1) % this.delayE.length;
     this.idxF = (this.idxF + 1) % this.delayF.length;
 
-    const tailL = tapA * 0.38 + tapC * 0.18 + tapD * 0.12 + tapE * 0.18 + tapF * 0.1;
-    const tailR = tapB * 0.38 + tapD * 0.18 + tapC * 0.12 + tapF * 0.18 + tapE * 0.1;
+    const cloudL =
+      tapA * (0.24 + 0.08 * motionMixA) +
+      tapC * 0.14 +
+      tapD * 0.1 +
+      tapE * (0.12 + 0.08 * motionMixB) +
+      tapF * 0.08;
+    const cloudR =
+      tapB * (0.24 + 0.08 * motionMixB) +
+      tapD * 0.14 +
+      tapC * 0.1 +
+      tapF * (0.12 + 0.08 * motionMixA) +
+      tapE * 0.08;
+    const tailL = cloudL + (this.filtC + this.filtE) * 0.12;
+    const tailR = cloudR + (this.filtD + this.filtF) * 0.12;
     this.left = sparkleL * 0.05 + motifL * 0.72 + tailL * wet;
     this.right = sparkleR * 0.05 + motifR * 0.72 + tailR * wet;
     return 0.5 * (this.left + this.right);

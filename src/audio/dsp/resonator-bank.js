@@ -9,7 +9,7 @@ export class ResonatorBank {
   constructor(sampleRate, palette) {
     this.sr = sampleRate;
     this.rootMidi = palette.rootMidi;
-    this.rootOctave = -12;
+    this.rootOctave = -24;
     this.chords = palette.sceneChords ?? [[0, 4, 7, 11]];
     this.secondaryRatio = 2.01;
     this.secondaryGain = Math.pow(10, (palette.secondaryBankGainDb ?? -11) / 20);
@@ -73,13 +73,13 @@ export class ResonatorBank {
 
   onOnset(band, intensity, brightness = 0.3) {
     const candidates = this.bandTargets[band] ?? this.bandTargets[1];
-    const voiceCount = brightness > 0.62 ? 2 : 1;
+    const voiceCount = brightness > 0.8 ? 2 : 1;
     for (let i = 0; i < voiceCount; i++) {
       const voiceIndex = candidates[(this._scatter + i) % candidates.length];
       const v = this.voices[voiceIndex];
       if (!v) continue;
-      const ducking = 1 / (1 + v.env * 14);
-      v.excitePending += intensity * v.weight * ducking * (0.08 + brightness * 0.06);
+      const ducking = 1 / (1 + v.env * 18);
+      v.excitePending += intensity * v.weight * ducking * (0.045 + brightness * 0.04);
     }
     this._scatter = (this._scatter + 1) % 1024;
   }

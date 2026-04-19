@@ -47,19 +47,19 @@ class LucidProcessor extends AudioWorkletProcessor {
       const canMotif = now >= this._motifCooldownUntil;
 
       const shimmerIntent = intensity * speechGate * brightGate;
-      if (shimmerIntent > 0.16) {
-        this._tail.onOnset(band, clamp((shimmerIntent - 0.16) / 0.84, 0, 1), this._brightness);
+      if (shimmerIntent > 0.24) {
+        this._tail.onOnset(band, clamp((shimmerIntent - 0.24) / 0.76, 0, 1), this._brightness);
       }
 
-      if (canAccent && transientIntent > 0.38 && band >= 1) {
-        const accentAmount = clamp((transientIntent - 0.38) / 0.62, 0, 1);
+      if (canAccent && transientIntent > 0.52 && band >= 1) {
+        const accentAmount = clamp((transientIntent - 0.52) / 0.48, 0, 1);
         this._bank.onOnset(band, accentAmount, this._brightness);
         this._lastOnsetTime = now;
         this._lastOnsetIntensity = accentAmount;
 
         const cooldown =
-          2.4 +
-          (1 - accentAmount) * 2.2 +
+          4.2 +
+          (1 - accentAmount) * 3.2 +
           clamp(this._speechiness) * 1.2;
         this._accentCooldownUntil = now + cooldown;
       }
@@ -127,12 +127,15 @@ class LucidProcessor extends AudioWorkletProcessor {
       const quietLift = 1 + quietness * 0.45;
       const brightTrail =
         xr *
-        (0.16 + this._brightness * 0.24) *
+        (0.22 + this._brightness * 0.3) *
         (1 - 0.7 * this._speechiness) *
         quietLift;
+      const ambientSend =
+        (direct * (0.52 + quietness * 0.18) + x * (0.18 + quietness * 0.12)) *
+        (1 - this._speechiness * 0.45);
       this._tail.process(
-        this._bank.left * 0.3 + brightTrail + this._bed.left * 0.04,
-        this._bank.right * 0.3 + brightTrail + this._bed.right * 0.04,
+        this._bank.left * 0.18 + brightTrail + ambientSend + this._bed.left * 0.04,
+        this._bank.right * 0.18 + brightTrail + ambientSend + this._bed.right * 0.04,
         energy,
         this._brightness,
         this._speechiness,
@@ -142,16 +145,16 @@ class LucidProcessor extends AudioWorkletProcessor {
       const yL =
         direct * (1 + quietness * 0.12) +
         sceneGain * (
-          this._bank.left * 0.26 +
+          this._bank.left * 0.14 +
           this._bed.left * 0.78 +
-          this._tail.left * 0.92
+          this._tail.left * 1.12
         );
       const yR =
         direct * (1 + quietness * 0.12) +
         sceneGain * (
-          this._bank.right * 0.26 +
+          this._bank.right * 0.14 +
           this._bed.right * 0.78 +
-          this._tail.right * 0.92
+          this._tail.right * 1.12
         );
       outL[i] = Math.tanh(yL * 0.78);
       outR[i] = Math.tanh(yR * 0.78);
