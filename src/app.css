@@ -1,0 +1,19 @@
+html, body, #app {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #0A0A0C;
+  overflow: hidden;
+}
+
+body {
+  font-family: -apple-system, system-ui, 'Inter', sans-serif;
+  font-weight: 200;
+  color: #E8E8EC;
+  -webkit-tap-highlight-color: transparent;
+}
+
+* {
+  box-sizing: border-box;
+  touch-action: manipulation;
+}
