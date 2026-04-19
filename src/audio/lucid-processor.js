@@ -68,14 +68,14 @@ class LucidProcessor extends AudioWorkletProcessor {
         intensity *
         speechGate *
         clamp(0.18 + this._sceneEnergy * 0.5 + this._brightness * 0.6 + band * 0.14, 0, 1.2);
-      if (canMotif && motifIntent > 0.48 && band >= 2) {
-        const motifAmount = clamp((motifIntent - 0.48) / 0.72, 0, 1);
+      if (canMotif && motifIntent > 0.58 && band >= 2) {
+        const motifAmount = clamp((motifIntent - 0.58) / 0.56, 0, 1);
         this._tail.triggerMotif(motifAmount, this._brightness);
         this._lastOnsetTime = now;
         this._lastOnsetIntensity = Math.max(this._lastOnsetIntensity, motifAmount);
         const motifCooldown =
-          9 +
-          (1 - motifAmount) * 7 +
+          12 +
+          (1 - motifAmount) * 8 +
           clamp(this._speechiness) * 4;
         this._motifCooldownUntil = now + motifCooldown;
       }

@@ -14,6 +14,12 @@ export const ghibli = {
     [9, 12, 16, 19],
     [2, 7, 9, 12]
   ],
+  motifVoicings: [
+    [0, 4, 7, 12, 14, 19, 24],
+    [5, 9, 12, 17, 19, 24, 29],
+    [9, 12, 16, 21, 23, 28, 33],
+    [2, 5, 9, 14, 16, 21, 26]
+  ],
   sceneChordCycle: [0, 1, 2, 3],
   bedPartials: [0, 7],
   bedRootOctaveOffset: -24,
