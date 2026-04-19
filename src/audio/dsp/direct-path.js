@@ -7,24 +7,24 @@ function clamp(x, lo, hi) {
 export class DirectPath {
   constructor(sampleRate) {
     this.hp = new Biquad();
-    this.hp.setHighpass(sampleRate, 160, 0.707);
+    this.hp.setHighpass(sampleRate, 140, 0.707);
     this.lp = new Biquad();
-    this.lp.setLowpass(sampleRate, 4600, 0.707);
+    this.lp.setLowpass(sampleRate, 6200, 0.707);
     this.midDip = new Biquad();
-    this.midDip.setPeakingEq(sampleRate, 2600, 0.9, -3.0);
+    this.midDip.setPeakingEq(sampleRate, 2800, 0.9, -2.0);
     this.bodyDip = new Biquad();
-    this.bodyDip.setPeakingEq(sampleRate, 620, 0.8, -1.5);
-    this.trim = Math.pow(10, -15 / 20);
-    this.drive = 1.05;
-    this.mix = 0.28;
-    this.mixAlpha = 0.003;
+    this.bodyDip.setPeakingEq(sampleRate, 680, 0.8, -1.0);
+    this.trim = Math.pow(10, -12.5 / 20);
+    this.drive = 0.92;
+    this.mix = 0.38;
+    this.mixAlpha = 0.0022;
   }
 
   process(x, energy = 0, speechiness = 0, brightness = 0.3) {
     const targetMix = clamp(
-      0.2 + speechiness * 0.16 + (1 - energy) * 0.06 - brightness * 0.03,
-      0.16,
-      0.38
+      0.34 + speechiness * 0.1 + (1 - energy) * 0.08 - brightness * 0.02,
+      0.28,
+      0.52
     );
     this.mix += (targetMix - this.mix) * this.mixAlpha;
 
@@ -32,7 +32,7 @@ export class DirectPath {
     y = this.lp.process(y);
     y = this.midDip.process(y);
     y = this.bodyDip.process(y);
-    y = this.trim * Math.tanh(this.drive * y);
+    y = this.trim * Math.tanh(this.drive * y) + y * 0.08;
     return y * this.mix;
   }
 }

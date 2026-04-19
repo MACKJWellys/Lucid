@@ -31,13 +31,31 @@ class LucidProcessor extends AudioWorkletProcessor {
     this._envSlow = 0;
     this._brightness = 0.24;
     this._speechiness = 0.12;
+    this._sceneEnergy = 0;
+    this._accentCooldownUntil = 0;
 
     this._onset.onOnset = (band, intensity) => {
-      this._bank.onOnset(band, intensity, this._brightness);
-      this._tail.onOnset(band, intensity, this._brightness);
       this._density.registerOnset();
-      this._lastOnsetTime = currentTime;
-      this._lastOnsetIntensity = intensity;
+
+      const speechGate = clamp(1 - this._speechiness * 1.35, 0, 1);
+      const energyGate = clamp(0.3 + this._sceneEnergy * 0.9, 0, 1);
+      const transientIntent = intensity * speechGate * energyGate;
+      const now = currentTime;
+      const canAccent = now >= this._accentCooldownUntil;
+
+      if (canAccent && transientIntent > 0.16) {
+        const accentAmount = clamp((transientIntent - 0.16) / 0.84, 0, 1);
+        this._bank.onOnset(band, accentAmount, this._brightness);
+        this._tail.onOnset(band, accentAmount, this._brightness);
+        this._lastOnsetTime = now;
+        this._lastOnsetIntensity = accentAmount;
+
+        const cooldown =
+          1.4 +
+          (1 - accentAmount) * 1.2 +
+          clamp(this._speechiness) * 0.9;
+        this._accentCooldownUntil = now + cooldown;
+      }
     };
 
     this._phaseStartTime = currentTime;
@@ -48,7 +66,7 @@ class LucidProcessor extends AudioWorkletProcessor {
     this._bed.setChordIndex(this._chordIndex);
     this._bank.setChordIndex(this._chordIndex);
     this._tail.setChordIndex(this._chordIndex);
-    this._nextChordShiftTime = currentTime + 7;
+    this._nextChordShiftTime = currentTime + 12;
   }
 
   process(inputs, outputs) {
@@ -77,6 +95,7 @@ class LucidProcessor extends AudioWorkletProcessor {
       this._speechiness += (this._onset.lastSpeechiness - this._speechiness) * 0.002;
 
       const energy = clamp(this._envSlow * 7.5);
+      this._sceneEnergy += (energy - this._sceneEnergy) * 0.004;
       const quietness = clamp(1 - energy * 1.7);
       const xr = this._reflectHP.process(x);
       const direct = sceneGain ? this._direct.process(x, energy, this._speechiness, this._brightness) : 0;
@@ -94,19 +113,19 @@ class LucidProcessor extends AudioWorkletProcessor {
       const yL =
         direct +
         sceneGain * (
-          this._bank.left * 0.86 +
-          this._bed.left +
-          this._tail.left
+          this._bank.left * 0.4 +
+          this._bed.left * 0.78 +
+          this._tail.left * 0.72
         );
       const yR =
         direct +
         sceneGain * (
-          this._bank.right * 0.86 +
-          this._bed.right +
-          this._tail.right
+          this._bank.right * 0.4 +
+          this._bed.right * 0.78 +
+          this._tail.right * 0.72
         );
-      outL[i] = Math.tanh(yL * 0.92);
-      outR[i] = Math.tanh(yR * 0.92);
+      outL[i] = Math.tanh(yL * 0.78);
+      outR[i] = Math.tanh(yR * 0.78);
       this._rmsAccum += x * x; this._rmsCount++;
     }
 
@@ -120,9 +139,9 @@ class LucidProcessor extends AudioWorkletProcessor {
       this._bank.setChordIndex(this._chordIndex);
       this._tail.setChordIndex(this._chordIndex);
       const hold =
-        5 +
-        (1 - clamp(this._envSlow * 6)) * 4 +
-        clamp(this._speechiness) * 2;
+        12 +
+        (1 - clamp(this._envSlow * 6)) * 7 +
+        clamp(this._speechiness) * 4;
       this._nextChordShiftTime = now + hold;
     }
 

@@ -63,8 +63,8 @@ export class ReactiveTail {
     const semi = chord[(this.scatter + band) % chord.length] + octaveOffsets[Math.min(band, octaveOffsets.length - 1)];
     best.freq = midiToHz(this.rootMidi + semi);
     best.phase = 0;
-    best.env = 0.05 + 0.13 * intensity;
-    const tailSeconds = 0.6 + (1 - brightness) * 1.2;
+    best.env = 0.012 + 0.045 * intensity;
+    const tailSeconds = 0.45 + (1 - brightness) * 0.75;
     best.decay = Math.exp(-1 / (this.sr * tailSeconds));
     best.pan = clamp((band - 1.5) * 0.28 + (this.scatter % 2 === 0 ? -0.12 : 0.12), -0.8, 0.8);
     best.drift = 0.014 + 0.003 * this.scatter;
@@ -84,7 +84,7 @@ export class ReactiveTail {
       sparkle.phase += 2 * Math.PI * sparkle.freq / this.sr;
       if (sparkle.phase > Math.PI * 2) sparkle.phase -= Math.PI * 2;
       const harmonic = Math.sin(sparkle.phase * 2 + sparkle.drift);
-      const sample = (Math.sin(sparkle.phase) + 0.18 * harmonic) * sparkle.env;
+      const sample = (Math.sin(sparkle.phase) + 0.12 * harmonic) * sparkle.env;
       sparkle.env *= sparkle.decay;
       sparkleL += sample * (0.5 * (1 - sparkle.pan));
       sparkleR += sample * (0.5 * (1 + sparkle.pan));
@@ -101,13 +101,13 @@ export class ReactiveTail {
     this.filtC += (tapC - this.filtC) * damp;
     this.filtD += (tapD - this.filtD) * damp;
 
-    const wet = clamp(0.16 + 0.12 * this.quietness + 0.05 * this.brightness, 0.12, 0.34);
-    const feedback = clamp(0.76 - 0.18 * this.speechiness + 0.05 * this.quietness, 0.58, 0.82);
-    const inputDuck = 1 - 0.72 * this.speechiness;
-    const feedGain = 0.2 + 0.08 * this.brightness;
+    const wet = clamp(0.08 + 0.08 * this.quietness + 0.03 * this.brightness, 0.06, 0.2);
+    const feedback = clamp(0.62 - 0.16 * this.speechiness + 0.04 * this.quietness, 0.42, 0.7);
+    const inputDuck = 1 - 0.8 * this.speechiness;
+    const feedGain = 0.12 + 0.04 * this.brightness;
 
-    const feedL = inputL * feedGain * inputDuck + sparkleL * (0.62 + 0.18 * this.brightness);
-    const feedR = inputR * feedGain * inputDuck + sparkleR * (0.62 + 0.18 * this.brightness);
+    const feedL = inputL * feedGain * inputDuck + sparkleL * (0.3 + 0.1 * this.brightness);
+    const feedR = inputR * feedGain * inputDuck + sparkleR * (0.3 + 0.1 * this.brightness);
 
     this.delayA[this.idxA] = softClip(feedL + feedback * (0.54 * this.filtC + 0.16 * this.filtD));
     this.delayB[this.idxB] = softClip(feedR + feedback * (0.52 * this.filtA + 0.16 * this.filtC));
@@ -121,8 +121,8 @@ export class ReactiveTail {
 
     const tailL = tapA * 0.54 + tapC * 0.28 + tapD * 0.16;
     const tailR = tapB * 0.54 + tapD * 0.28 + tapC * 0.16;
-    this.left = sparkleL * 0.2 + tailL * wet;
-    this.right = sparkleR * 0.2 + tailR * wet;
+    this.left = sparkleL * 0.08 + tailL * wet;
+    this.right = sparkleR * 0.08 + tailR * wet;
     return 0.5 * (this.left + this.right);
   }
 }

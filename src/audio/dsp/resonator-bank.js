@@ -31,12 +31,12 @@ export class ResonatorBank {
   _buildVoices(p) {
     this.voices.length = 0;
     const defs = [
-      { slot: 0, octave: 0, weight: 1.0, pan: -0.42, inputWeight: 0.1, qMul: 1.0 },
-      { slot: 1, octave: 12, weight: 0.8, pan: -0.18, inputWeight: 0.08, qMul: 0.92 },
-      { slot: 2, octave: 12, weight: 0.9, pan: 0.16, inputWeight: 0.08, qMul: 0.92 },
-      { slot: 3, octave: 12, weight: 0.72, pan: 0.4, inputWeight: 0.06, qMul: 0.88 },
-      { slot: 1, octave: 24, weight: 0.45, pan: -0.3, inputWeight: 0.04, qMul: 0.8 },
-      { slot: 2, octave: 24, weight: 0.42, pan: 0.3, inputWeight: 0.04, qMul: 0.8 }
+      { slot: 0, octave: 0, weight: 0.75, pan: -0.36, inputWeight: 0.06, qMul: 1.08 },
+      { slot: 1, octave: 12, weight: 0.54, pan: -0.12, inputWeight: 0.04, qMul: 1.0 },
+      { slot: 2, octave: 12, weight: 0.58, pan: 0.1, inputWeight: 0.04, qMul: 1.0 },
+      { slot: 3, octave: 12, weight: 0.42, pan: 0.3, inputWeight: 0.03, qMul: 0.96 },
+      { slot: 1, octave: 24, weight: 0.16, pan: -0.22, inputWeight: 0.015, qMul: 0.88 },
+      { slot: 2, octave: 24, weight: 0.15, pan: 0.22, inputWeight: 0.015, qMul: 0.88 }
     ];
     for (const def of defs) {
       const primary = new Biquad();
@@ -73,13 +73,13 @@ export class ResonatorBank {
 
   onOnset(band, intensity, brightness = 0.3) {
     const candidates = this.bandTargets[band] ?? this.bandTargets[1];
-    const voiceCount = brightness > 0.45 ? 2 : 1;
+    const voiceCount = brightness > 0.62 ? 2 : 1;
     for (let i = 0; i < voiceCount; i++) {
       const voiceIndex = candidates[(this._scatter + i) % candidates.length];
       const v = this.voices[voiceIndex];
       if (!v) continue;
-      const ducking = 1 / (1 + v.env * 10);
-      v.excitePending += intensity * v.weight * ducking * (0.22 + brightness * 0.18);
+      const ducking = 1 / (1 + v.env * 14);
+      v.excitePending += intensity * v.weight * ducking * (0.08 + brightness * 0.06);
     }
     this._scatter = (this._scatter + 1) % 1024;
   }
@@ -90,9 +90,9 @@ export class ResonatorBank {
     let sumSq = 0;
     const liveDrive =
       inputSample *
-      (0.008 + 0.022 * clamp(energy)) *
-      (1 - 0.85 * clamp(speechiness)) *
-      (0.6 + 0.4 * clamp(brightness));
+      (0.003 + 0.01 * clamp(energy)) *
+      (1 - 0.9 * clamp(speechiness)) *
+      (0.5 + 0.3 * clamp(brightness));
 
     for (const v of this.voices) {
       const imp = v.excitePending;
@@ -100,13 +100,13 @@ export class ResonatorBank {
       const xv = imp + liveDrive * v.inputWeight;
       const yp = v.primary.process(xv);
       const ys = v.secondary.process(xv) * this.secondaryGain;
-      const y = Math.tanh((yp + ys) * 1.35) * 0.82;
-      v.env = v.env * 0.99965 + Math.abs(y) * 0.00035;
+      const y = Math.tanh((yp + ys) * 0.92) * 0.48;
+      v.env = v.env * 0.99978 + Math.abs(y) * 0.00022;
       outL += y * (0.5 * (1 - v.pan));
       outR += y * (0.5 * (1 + v.pan));
       sumSq += y * y;
     }
-    const target = sumSq > 0.05 ? Math.sqrt(0.05 / sumSq) : 1;
+    const target = sumSq > 0.025 ? Math.sqrt(0.025 / sumSq) : 1;
     this._limiter = this._limiter + (target - this._limiter) * (target < this._limiter ? 0.02 : 0.005);
     this.left = outL * this._limiter;
     this.right = outR * this._limiter;

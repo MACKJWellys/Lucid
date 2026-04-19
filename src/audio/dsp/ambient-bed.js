@@ -39,6 +39,8 @@ export class AmbientBed {
     this.filterR = 0;
     this.left = 0;
     this.right = 0;
+    this.chordAccent = 0;
+    this._hasChord = false;
 
     this.setChordIndex(0);
   }
@@ -53,6 +55,8 @@ export class AmbientBed {
       voice.targetFreq = midiToHz(midi);
       if (!voice.freq) voice.freq = voice.targetFreq;
     }
+    if (this._hasChord) this.chordAccent = 1;
+    this._hasChord = true;
   }
 
   process(energy = 0, brightness = 0.3, speechiness = 0, density = 0.3, quietness = 0.3) {
@@ -61,6 +65,7 @@ export class AmbientBed {
     this.speechiness += (speechiness - this.speechiness) * 0.0012;
     this.density += (density - this.density) * 0.0008;
     this.quietness += (quietness - this.quietness) * 0.001;
+    this.chordAccent *= 0.99992;
 
     this.motionPhase += 2 * Math.PI * 0.012 / this.sr;
     if (this.motionPhase > Math.PI * 2) this.motionPhase -= Math.PI * 2;
@@ -69,11 +74,12 @@ export class AmbientBed {
       0.82 +
       0.14 * Math.sin(this.motionPhase) +
       0.04 * Math.sin(this.motionPhase * 0.37 + 1.2);
-    const intensity = 0.05 + 0.46 * Math.pow(clamp(this.energy), 0.68);
-    const quietLift = 0.04 + 0.06 * clamp(this.quietness);
+    const intensity = 0.02 + 0.28 * Math.pow(clamp(this.energy), 0.78);
+    const quietLift = 0.015 + 0.03 * clamp(this.quietness);
     const densityShade = 0.94 - 0.18 * clamp(this.density);
-    const sceneGain = (quietLift + intensity) * densityShade * (1 - 0.48 * clamp(this.speechiness));
-    const timbre = clamp(0.18 + 0.5 * this.brightness + 0.14 * this.density, 0.08, 0.9);
+    const motifLift = 0.06 * this.chordAccent * (0.4 + 0.6 * this.quietness);
+    const sceneGain = (quietLift + intensity + motifLift) * densityShade * (1 - 0.56 * clamp(this.speechiness));
+    const timbre = clamp(0.14 + 0.36 * this.brightness + 0.1 * this.density, 0.06, 0.72);
     const width = clamp(0.5 + 0.45 * this.quietness + 0.12 * this.brightness, 0.35, 0.95);
 
     let sumL = 0;
@@ -97,7 +103,7 @@ export class AmbientBed {
         (0.72 * fundamental + 0.28 * companion) * (1 - timbre) +
         (0.58 * fundamental + 0.2 * companion + 0.22 * harmonic) * timbre;
 
-      const ampLfo = 0.78 + 0.22 * Math.sin(voice.driftPhase * 0.41 + i * 0.7);
+      const ampLfo = 0.82 + 0.18 * Math.sin(voice.driftPhase * 0.41 + i * 0.7);
       const sample = tone * voice.gain * ampLfo * breath * sceneGain;
       const pan = clamp(voice.pan * width, -0.95, 0.95);
 
@@ -105,7 +111,7 @@ export class AmbientBed {
       sumR += sample * (0.5 * (1 + pan));
     }
 
-    const filterCoeff = 0.024 + 0.05 * this.brightness;
+    const filterCoeff = 0.014 + 0.028 * this.brightness;
     this.filterL += (sumL - this.filterL) * filterCoeff;
     this.filterR += (sumR - this.filterR) * filterCoeff;
     this.left = this.filterL * this.baseGain;
