@@ -19,6 +19,7 @@
         await engine.start();
         isActive = true;
         driver.setActive(true);
+        driver.setPhase('active');
       } catch (err) {
         console.error('engine start failed', err);
         hint = 'Lucid needs to hear the world. Tap to allow microphone.';
@@ -27,6 +28,7 @@
       await engine.stop();
       isActive = false;
       driver.setActive(false);
+      driver.setPhase('idle');
     }
   }
 
