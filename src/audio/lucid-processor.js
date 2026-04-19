@@ -1,6 +1,10 @@
+import { DirectPath } from './dsp/direct-path.js';
+
 class LucidProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
+    this._sr = sampleRate;
+    this._direct = new DirectPath(this._sr);
     this._lastPostTime = 0;
     this._rmsAccum = 0;
     this._rmsCount = 0;
@@ -10,7 +14,6 @@ class LucidProcessor extends AudioWorkletProcessor {
     const input = inputs[0];
     const output = outputs[0];
     if (!input || input.length === 0) return true;
-
     const inCh = input[0];
     const outL = output[0];
     const outR = output[1] || output[0];
@@ -18,7 +21,7 @@ class LucidProcessor extends AudioWorkletProcessor {
 
     for (let i = 0; i < len; i++) {
       const x = inCh ? inCh[i] : 0;
-      const y = x * 0.25;
+      const y = this._direct.process(x);
       outL[i] = y;
       outR[i] = y;
       this._rmsAccum += x * x;
