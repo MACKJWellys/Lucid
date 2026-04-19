@@ -1,19 +1,38 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onDestroy } from 'svelte';
   import Orb from './viz/Orb.svelte';
   import { createVizDriver } from './viz/viz-driver.js';
+  import { createEngine } from './audio/engine.js';
 
   const driver = createVizDriver();
+  const engine = createEngine();
 
   let isActive = false;
+  let hint = 'tap to begin';
 
-  function toggle() {
-    isActive = !isActive;
-    driver.setActive(isActive);
+  const offFeatures = engine.onFeatures((f) => driver.updateFeatures(f));
+
+  async function toggle() {
+    if (!isActive) {
+      try {
+        hint = 'tap to begin';
+        await engine.start();
+        isActive = true;
+        driver.setActive(true);
+      } catch (err) {
+        console.error('engine start failed', err);
+        hint = 'Lucid needs to hear the world. Tap to allow microphone.';
+      }
+    } else {
+      await engine.stop();
+      isActive = false;
+      driver.setActive(false);
+    }
   }
 
-  onMount(() => {
-    driver.setActive(false);
+  onDestroy(() => {
+    offFeatures();
+    engine.stop();
   });
 </script>
 
@@ -27,7 +46,7 @@
   </section>
 
   {#if !isActive}
-    <footer class="hint">tap to begin</footer>
+    <footer class="hint">{hint}</footer>
   {/if}
 </main>
 
