@@ -56,4 +56,15 @@ describe('DirectPath', () => {
     }
     expect(quietPeak / 0.015).toBeGreaterThan((louderPeak / 0.08) * 0.75);
   });
+
+  it('adds a stereo diffused shell instead of staying purely mono dry', () => {
+    const dp = new DirectPath(48000);
+    let spread = 0;
+    for (let i = 0; i < 12000; i++) {
+      const s = 0.08 * Math.sin(2 * Math.PI * 900 * i / 48000);
+      dp.process(s, 0.12, 0.05, 0.35);
+      if (i > 4000) spread = Math.max(spread, Math.abs(dp.left - dp.right));
+    }
+    expect(spread).toBeGreaterThan(1e-4);
+  });
 });

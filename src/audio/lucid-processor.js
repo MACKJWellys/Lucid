@@ -131,7 +131,7 @@ class LucidProcessor extends AudioWorkletProcessor {
         (1 - 0.7 * this._speechiness) *
         quietLift;
       const ambientSend =
-        (direct * (0.52 + quietness * 0.18) + x * (0.18 + quietness * 0.12)) *
+        ((this._direct.left + this._direct.right) * 0.5 * (0.68 + quietness * 0.24) + x * (0.22 + quietness * 0.14)) *
         (1 - this._speechiness * 0.45);
       this._tail.process(
         this._bank.left * 0.18 + brightTrail + ambientSend + this._bed.left * 0.04,
@@ -143,17 +143,17 @@ class LucidProcessor extends AudioWorkletProcessor {
       );
 
       const yL =
-        direct * (1 + quietness * 0.12) +
+        this._direct.left * (1 + quietness * 0.08) +
         sceneGain * (
           this._bank.left * 0.14 +
-          this._bed.left * 0.78 +
+          this._bed.left * 1.04 +
           this._tail.left * 1.12
         );
       const yR =
-        direct * (1 + quietness * 0.12) +
+        this._direct.right * (1 + quietness * 0.08) +
         sceneGain * (
           this._bank.right * 0.14 +
-          this._bed.right * 0.78 +
+          this._bed.right * 1.04 +
           this._tail.right * 1.12
         );
       outL[i] = Math.tanh(yL * 0.78);

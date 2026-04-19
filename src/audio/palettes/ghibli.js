@@ -23,7 +23,7 @@ export const ghibli = {
   sceneChordCycle: [0, 1, 2, 3],
   bedPartials: [0, 7],
   bedRootOctaveOffset: -24,
-  bedGainDb: -31
+  bedGainDb: -27
 };
 
 export function midiToHz(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
