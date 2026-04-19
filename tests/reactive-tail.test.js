@@ -15,7 +15,7 @@ describe('ReactiveTail', () => {
 
   it('blooms after an onset and then decays', () => {
     const tail = new ReactiveTail(48000, ghibli);
-    tail.onOnset(2, 0.9, 0.5);
+    tail.onOnset(3, 0.9, 0.5);
 
     let earlyPeak = 0;
     for (let i = 0; i < 24000; i++) {
@@ -31,5 +31,18 @@ describe('ReactiveTail', () => {
 
     expect(earlyPeak).toBeGreaterThan(1e-4);
     expect(latePeak).toBeLessThan(earlyPeak);
+  });
+
+  it('can unfold a delayed motif chord over time', () => {
+    const tail = new ReactiveTail(48000, ghibli);
+    tail.triggerMotif(0.8, 0.35);
+
+    let peak = 0;
+    for (let i = 0; i < 96000; i++) {
+      tail.process(0, 0, 0.1, 0.3, 0.05, 0.8);
+      peak = Math.max(peak, Math.abs(tail.left), Math.abs(tail.right));
+    }
+
+    expect(peak).toBeGreaterThan(1e-4);
   });
 });
